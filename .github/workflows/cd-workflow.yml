@@ -1,0 +1,91 @@
+# This file wont do us much good in this location, make sure you change the path as directed to continue!
+
+name: Node CD
+
+on:
+  push:
+    paths:
+      - "**Dockerfile**"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3.0.2
+      
+      - name: Npm install and build webpack
+        run: |
+          npm install
+          npm run build
+          
+      - name: Upload built artifact
+        uses: actions/upload-artifact@v3.0.0
+        with:
+          name: Webpack artifacts
+          path: public/
+          
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-lastest, windows-2016]
+        node-version: [12.x, 14.x]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3.0.2
+        
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3.1.1
+        with:
+          node-version: ${{ matrix.node-version }}
+          
+      - name: Download built artifact
+        uses: actions/download-artifact@v3.0.0
+        with:
+          name: Webpack artifacts
+          path: public
+          
+      - name: Npm install, and test
+        run: |
+          npm install
+          npm test
+        env:
+          CI: true
+    
+  build-and-push-docker-image:
+    name: Docker build, Tag, Push
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3.0.2
+          
+      - name: Download built artifact
+        uses: actions/download-artifact@v3.0.0
+        with:
+          name: Webpack artifacts
+          path: public
+          
+      - name: Docker Setup QEMU
+        uses: docker/setup-qemu-action@v2.0.0
+
+      - name: Docker Setup Buildx
+        uses: docker/setup-buildx-action@v2.0.0
+
+      - name: Docker Login
+        uses: docker/login-action@v2.0.0
+        with:
+          registry: docker.pkg.github.com
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v3.0.0
+        with:
+          push: true
+          tags: hongliyu2002/github-actions-for-packages/tic-tac-toe
+          github-token: ${{ github.token }}
